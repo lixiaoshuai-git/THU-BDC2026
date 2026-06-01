@@ -60,29 +60,23 @@ feature_cloums_map['strategy+base'] = _base_cols + _strategy_feat_cols
 
 def _build_label_and_clean(processed, drop_small_open=True):
     """统一构建标签并清洗无效样本。"""
+    processed = processed.copy()  # 避免 SettingWithCopyWarning
+
     processed['open_t1'] = processed.groupby('股票代码')['开盘'].shift(-1)
     processed['open_t5'] = processed.groupby('股票代码')['开盘'].shift(-5)
 
-    # 过滤无效开盘价，避免收益率极端爆炸
     if drop_small_open:
         processed = processed[processed['open_t1'] > 1e-4]
 
     processed['label'] = (processed['open_t5'] - processed['open_t1']) / (processed['open_t1'] + 1e-12)
     processed = processed.dropna(subset=['label'])
 
-    # === 标签优化：按日生成排名标签（LambdaRank 适用） ===
+    # === 标签优化：按日排名归一化 (LambdaRank 适用) ===
     if config.get('label_type') == 'rank':
-        # 按日期分组，生成 0~1 归一化排名分数
-        def _rank_label(group):
-            ret = group['label'].values
-            # 降序排名：收益越高，排名分数越高
-            from scipy.stats import rankdata
-            ranks = rankdata(ret)  # 升序排列
-            # 归一化到 [0.1, 0.9]，避免极端值
-            return (ranks - 1) / (len(ranks) - 1 + 1e-12) * 0.8 + 0.1
-        processed['label'] = processed.groupby('日期')[['label']].transform(_rank_label)
+        # 直接用 pandas rank(pct=True) 一步搞定，无 copy 问题
+        processed['label'] = processed.groupby('日期')['label'].rank(pct=True)
 
-    processed.drop(columns=['open_t1', 'open_t5'], inplace=True)
+    processed = processed.drop(columns=['open_t1', 'open_t5'])
     return processed
 
 
