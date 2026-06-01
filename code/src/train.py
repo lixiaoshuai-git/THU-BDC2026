@@ -721,7 +721,7 @@ def main():
     
     # 7. 损失函数和优化器
     # 使用 LambdaRank（论文验证效果最好的排序损失）
-    criterion = LambdaRankLoss(sigma=1.0, k=5)
+    criterion = LambdaRankLoss(sigma=1.0)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['learning_rate'], weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=10, T_mult=2, eta_min=1e-7
