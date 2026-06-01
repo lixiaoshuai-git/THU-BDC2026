@@ -545,8 +545,8 @@ def engineer_strategy_features(df):
     import numpy as np
 
     df = df.copy()
-    # 确保按股票+时间排序
-    df = df.sort_values(['instrument', '日期']).reset_index(drop=True)
+    # 确保按股票+时间排序（此时列名还是"股票代码"）
+    df = df.sort_values(['股票代码', '日期']).reset_index(drop=True)
 
     close = df['收盘'].astype(float)
     high = df['最高'].astype(float)
@@ -558,7 +558,7 @@ def engineer_strategy_features(df):
     # 是否站上5日线
     df['_above_ma5'] = (close > ma5).astype(float)
     # 连续N天站上5日线
-    df['str_above_ma5_3d'] = df.groupby('instrument')['_above_ma5'].transform(
+    df['str_above_ma5_3d'] = df.groupby('股票代码')['_above_ma5'].transform(
         lambda x: x.rolling(3, min_periods=3).sum()
     )
     # 价格与5日线的偏离度
@@ -573,12 +573,12 @@ def engineer_strategy_features(df):
     # 是否放量（量 > 5日均量）
     df['_vol_above_ma5'] = (volume > vol_ma5).astype(float)
     # 连续3天放量
-    df['str_vol_above_3d'] = df.groupby('instrument')['_vol_above_ma5'].transform(
+    df['str_vol_above_3d'] = df.groupby('股票代码')['_vol_above_ma5'].transform(
         lambda x: x.rolling(3, min_periods=3).sum()
     )
     # 同时放量+突破（核心信号）, 连续3天
     df['_breakout_vol'] = ((close > ma5) & (volume > vol_ma5)).astype(float)
-    df['str_breakout_vol_3d'] = df.groupby('instrument')['_breakout_vol'].transform(
+    df['str_breakout_vol_3d'] = df.groupby('股票代码')['_breakout_vol'].transform(
         lambda x: x.rolling(3, min_periods=3).sum()
     )
 
@@ -586,20 +586,20 @@ def engineer_strategy_features(df):
     # 巨量 = 当日量 > 20日均量 * 2
     df['_vol_surge'] = (volume > vol_ma20 * 2).astype(float)
     # 7天内放巨量的天数
-    df['str_surge_cnt_7d'] = df.groupby('instrument')['_vol_surge'].transform(
+    df['str_surge_cnt_7d'] = df.groupby('股票代码')['_vol_surge'].transform(
         lambda x: x.rolling(7, min_periods=7).sum()
     )
     # 7天内最大量比
-    df['str_max_vol_ratio_7d'] = df.groupby('instrument')['str_vol_ratio_20'].transform(
+    df['str_max_vol_ratio_7d'] = df.groupby('股票代码')['str_vol_ratio_20'].transform(
         lambda x: x.rolling(7, min_periods=7).max()
     )
     # 7天内放巨量且当日站上五日线
     df['_surge_above_ma5'] = df['_vol_surge'] * ((close > ma5).astype(float))
-    df['str_surge_above_ma5_7d'] = df.groupby('instrument')['_surge_above_ma5'].transform(
+    df['str_surge_above_ma5_7d'] = df.groupby('股票代码')['_surge_above_ma5'].transform(
         lambda x: x.rolling(7, min_periods=7).sum()
     )
     # 5日量变化趋势（放量持续性）
-    df['str_vol_trend_5d'] = df.groupby('instrument')['str_vol_ratio_5'].transform(
+    df['str_vol_trend_5d'] = df.groupby('股票代码')['str_vol_ratio_5'].transform(
         lambda x: (x.diff(5))
     )
 
@@ -611,7 +611,7 @@ def engineer_strategy_features(df):
     # J值偏离中位线(50)的程度,归一化
     df['str_kdj_j_dev'] = (df['str_kdj_j'] - 50) / 50.0
     # J值3日变化方向
-    df['str_kdj_j_delta_3d'] = df.groupby('instrument')['str_kdj_j'].transform(
+    df['str_kdj_j_delta_3d'] = df.groupby('股票代码')['str_kdj_j'].transform(
         lambda x: x.diff(3)
     )
     # J值是否在上升(3日)
@@ -633,12 +633,12 @@ def engineer_strategy_features(df):
         )
         return pd.Series(3 * wk_k - 2 * wk_d, index=group.index)
 
-    df['str_kdj_j_week'] = df.groupby('instrument', group_keys=False).apply(
+    df['str_kdj_j_week'] = df.groupby('股票代码', group_keys=False).apply(
         _weekly_kdj_for_stock, include_groups=False
     ).reset_index(level=0, drop=True)
 
     # 周线J值4周累计变化
-    df['str_kdj_j_week_trend'] = df.groupby('instrument')['str_kdj_j_week'].transform(
+    df['str_kdj_j_week_trend'] = df.groupby('股票代码')['str_kdj_j_week'].transform(
         lambda x: x.diff(4)
     )
     # 周线J值上升指示
