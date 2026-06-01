@@ -125,12 +125,20 @@ def main():
 	data_file = os.path.join(config['data_path'], 'train.csv')
 	model_path = os.path.join(config['output_dir'], 'best_model.pth')
 	scaler_path = os.path.join(config['output_dir'], 'scaler.pkl')
+	config_path = os.path.join(config['output_dir'], 'config.json')
 	output_path = os.path.join('./output/', 'result.csv')
 
 	if not os.path.exists(model_path):
 		raise FileNotFoundError(f'未找到模型文件: {model_path}')
 	if not os.path.exists(scaler_path):
 		raise FileNotFoundError(f'未找到Scaler文件: {scaler_path}')
+
+	# 加载训练时的配置，获取特征筛选结果
+	import json
+	train_config = {}
+	if os.path.exists(config_path):
+		with open(config_path, 'r') as f:
+			train_config = json.load(f)
 
 	raw_df = pd.read_csv(data_file, dtype={'股票代码': str})
 	raw_df['股票代码'] = raw_df['股票代码'].astype(str).str.zfill(6)
@@ -141,6 +149,17 @@ def main():
 	stockid2idx = {sid: idx for idx, sid in enumerate(stock_ids)}
 
 	processed, features = preprocess_predict_data(raw_df, stockid2idx)
+
+	# 使用训练时 IC 筛选后的特征
+	selected = train_config.get('selected_features')
+	if selected:
+		missing = set(selected) - set(features)
+		if missing:
+			# 策略特征可能列名不同，跳过缺失的
+			selected = [f for f in selected if f in features]
+		features = selected
+		print(f'使用训练时保存的特征: {len(features)} 个')
+
 	processed[features] = processed[features].replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
 	scaler = joblib.load(scaler_path)
