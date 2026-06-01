@@ -9,7 +9,7 @@ from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from config import config
 from model import StockTransformer
-from utils import engineer_features_39, engineer_features_158plus39
+from utils import engineer_features_39, engineer_features_158plus39, engineer_strategy_features
 from utils import create_ranking_dataset_vectorized
 import joblib
 import os
@@ -33,8 +33,29 @@ feature_cloums_map = {
 }
 feature_engineer_func_map = {
     '39': engineer_features_39,
-    '158+39': engineer_features_158plus39
+    '158+39': engineer_features_158plus39,
+    'strategy': engineer_features_158plus39,      # 策略模式：先算基础特征再追加
+    'strategy+base': engineer_features_158plus39,  # 同上
 }
+
+# 策略特征列（24个）
+_strategy_feat_cols = [
+    'str_above_ma5_3d', 'str_price_dev_ma5',
+    'str_vol_ratio_5', 'str_vol_ratio_20',
+    'str_vol_above_3d', 'str_breakout_vol_3d',
+    'str_surge_cnt_7d', 'str_max_vol_ratio_7d',
+    'str_surge_above_ma5_7d', 'str_vol_trend_5d',
+    'str_kdj_j', 'str_kdj_j_20_60', 'str_kdj_j_dev',
+    'str_kdj_j_delta_3d', 'str_kdj_j_up_3d',
+    'str_kdj_j_week', 'str_kdj_j_week_trend',
+    'str_kdj_j_week_up', 'str_kdj_j_week_day_diff',
+    'str_total_score',
+]
+
+# 基础特征 + 策略特征
+_base_cols = feature_cloums_map['158+39']
+feature_cloums_map['strategy'] = _strategy_feat_cols
+feature_cloums_map['strategy+base'] = _base_cols + _strategy_feat_cols
 
 
 def _build_label_and_clean(processed, drop_small_open=True):
@@ -73,6 +94,16 @@ def _preprocess_common(df, stockid2idx, desc, drop_small_open=True):
         processed_list = list(tqdm(pool.imap(feature_engineer, groups), total=len(groups), desc=desc))
 
     processed = pd.concat(processed_list).reset_index(drop=True)
+
+    # ---- 追加策略特征 ----
+    if config.get('use_strategy_features', False):
+        print(f"正在计算策略特征...")
+        processed, strategy_cols = engineer_strategy_features(processed)
+        # 如果选择了纯策略特征模式，切换特征列表
+        if config['feature_num'] == 'strategy':
+            feature_columns = strategy_cols
+        elif config['feature_num'] == 'strategy+base':
+            feature_columns = _base_cols + strategy_cols
 
     # 映射股票索引，并剔除映射失败样本
     processed['instrument'] = processed['股票代码'].map(stockid2idx)

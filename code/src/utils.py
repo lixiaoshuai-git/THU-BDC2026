@@ -525,6 +525,162 @@ def create_dataset(data, features, sequence_length, ranking_data_path=None):
     """保持原有接口，但内部调用新的排序数据集创建函数"""
     return create_ranking_dataset_multiprocess(data, features, sequence_length, ranking_data_path)
 
+# ============================================================
+# 策略特征工程：主力板块 + 放量突破 + KDJ筛选
+# ============================================================
+
+def engineer_strategy_features(df):
+    """
+    基于短线突破策略的特征工程，生成24个策略专属特征。
+
+    策略逻辑：
+      1. 连续三天放量突破五日线
+      2. 七日内存在1-2天放巨量（成交量 > 20日均量的2倍）
+      3. KDJ日线J值在20-60区间
+      4. KDJ周线J值在上升趋势中
+
+    返回：在原df基础上附加策略特征的DataFrame
+    """
+    import talib
+    import numpy as np
+
+    df = df.copy()
+    # 确保按股票+时间排序
+    df = df.sort_values(['instrument', '日期']).reset_index(drop=True)
+
+    close = df['收盘'].astype(float)
+    high = df['最高'].astype(float)
+    low  = df['最低'].astype(float)
+    volume = df['成交量'].astype(float)
+
+    # ---- 1. 五日线突破特征 (6个) ----
+    ma5 = talib.SMA(close, timeperiod=5)
+    # 是否站上5日线
+    df['_above_ma5'] = (close > ma5).astype(float)
+    # 连续N天站上5日线
+    df['str_above_ma5_3d'] = df.groupby('instrument')['_above_ma5'].transform(
+        lambda x: x.rolling(3, min_periods=3).sum()
+    )
+    # 价格与5日线的偏离度
+    df['str_price_dev_ma5'] = (close - ma5) / (ma5 + 1e-12)
+
+    # ---- 2. 放量突破特征 (6个) ----
+    vol_ma5  = talib.SMA(volume, timeperiod=5)
+    vol_ma20 = talib.SMA(volume, timeperiod=20)
+    # 当日量比（相对5日/20日均量）
+    df['str_vol_ratio_5']  = volume / (vol_ma5  + 1e-12)
+    df['str_vol_ratio_20'] = volume / (vol_ma20 + 1e-12)
+    # 是否放量（量 > 5日均量）
+    df['_vol_above_ma5'] = (volume > vol_ma5).astype(float)
+    # 连续3天放量
+    df['str_vol_above_3d'] = df.groupby('instrument')['_vol_above_ma5'].transform(
+        lambda x: x.rolling(3, min_periods=3).sum()
+    )
+    # 同时放量+突破（核心信号）, 连续3天
+    df['_breakout_vol'] = ((close > ma5) & (volume > vol_ma5)).astype(float)
+    df['str_breakout_vol_3d'] = df.groupby('instrument')['_breakout_vol'].transform(
+        lambda x: x.rolling(3, min_periods=3).sum()
+    )
+
+    # ---- 3. 七日放巨量特征 (5个) ----
+    # 巨量 = 当日量 > 20日均量 * 2
+    df['_vol_surge'] = (volume > vol_ma20 * 2).astype(float)
+    # 7天内放巨量的天数
+    df['str_surge_cnt_7d'] = df.groupby('instrument')['_vol_surge'].transform(
+        lambda x: x.rolling(7, min_periods=7).sum()
+    )
+    # 7天内最大量比
+    df['str_max_vol_ratio_7d'] = df.groupby('instrument')['str_vol_ratio_20'].transform(
+        lambda x: x.rolling(7, min_periods=7).max()
+    )
+    # 7天内放巨量且当日站上五日线
+    df['_surge_above_ma5'] = df['_vol_surge'] * ((close > ma5).astype(float))
+    df['str_surge_above_ma5_7d'] = df.groupby('instrument')['_surge_above_ma5'].transform(
+        lambda x: x.rolling(7, min_periods=7).sum()
+    )
+    # 5日量变化趋势（放量持续性）
+    df['str_vol_trend_5d'] = df.groupby('instrument')['str_vol_ratio_5'].transform(
+        lambda x: (x.diff(5))
+    )
+
+    # ---- 4. KDJ日线特征 (5个) ----
+    k, d = talib.STOCH(high, low, close, fastk_period=9, slowk_period=3, slowd_period=3)
+    df['str_kdj_j'] = 3 * k.values - 2 * d.values
+    # J值是否在20-60之间
+    df['str_kdj_j_20_60'] = ((df['str_kdj_j'] >= 20) & (df['str_kdj_j'] <= 60)).astype(float)
+    # J值偏离中位线(50)的程度,归一化
+    df['str_kdj_j_dev'] = (df['str_kdj_j'] - 50) / 50.0
+    # J值3日变化方向
+    df['str_kdj_j_delta_3d'] = df.groupby('instrument')['str_kdj_j'].transform(
+        lambda x: x.diff(3)
+    )
+    # J值是否在上升(3日)
+    df['str_kdj_j_up_3d'] = (df['str_kdj_j_delta_3d'] > 0).astype(float)
+
+    # ---- 5. KDJ周线特征 (4个) ----
+    # 用5日滚动窗口近似周线KDJ
+    def _weekly_kdj_for_stock(group):
+        group = group.sort_values('日期')
+        wk_high  = group['最高'].rolling(5, min_periods=5).max()
+        wk_low   = group['最低'].rolling(5, min_periods=5).min()
+        wk_close = group['收盘']
+        wk_open  = group['开盘'].shift(4).fillna(group['开盘'])  # 5日前开盘
+        wk_k, wk_d = talib.STOCH(
+            wk_high.values.astype(float),
+            wk_low.values.astype(float),
+            wk_close.values.astype(float),
+            fastk_period=9, slowk_period=3, slowd_period=3
+        )
+        return pd.Series(3 * wk_k - 2 * wk_d, index=group.index)
+
+    df['str_kdj_j_week'] = df.groupby('instrument', group_keys=False).apply(
+        _weekly_kdj_for_stock, include_groups=False
+    ).reset_index(level=0, drop=True)
+
+    # 周线J值4周累计变化
+    df['str_kdj_j_week_trend'] = df.groupby('instrument')['str_kdj_j_week'].transform(
+        lambda x: x.diff(4)
+    )
+    # 周线J值上升指示
+    df['str_kdj_j_week_up'] = (df['str_kdj_j_week_trend'] > 0).astype(float)
+    # 周线J值位置(相对于日线J的背离)
+    df['str_kdj_j_week_day_diff'] = df['str_kdj_j_week'] - df['str_kdj_j']
+
+    # ---- 6. 策略综合评分 (1个) ----
+    # 四大条件加权打分 (总分0~8)
+    df['str_total_score'] = (
+        (df['str_breakout_vol_3d'] >= 2).astype(float) * 3 +      # 放量突破(最高权重)
+        ((df['str_surge_cnt_7d'] >= 1) & (df['str_surge_cnt_7d'] <= 2)).astype(float) * 2 +  # 有巨量
+        df['str_kdj_j_20_60'] * 2 +                               # J值在20-60
+        df['str_kdj_j_week_up'] * 1                                # 周线J上升
+    )
+
+    # ---- 清理 ----
+    # 删除中间临时列
+    tmp_cols = ['_above_ma5', '_vol_above_ma5', '_breakout_vol', '_vol_surge', '_surge_above_ma5']
+    for c in tmp_cols:
+        if c in df.columns:
+            df.drop(columns=[c], inplace=True)
+
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.fillna(0, inplace=True)
+
+    # 返回策略特征的列名列表（供外部使用）
+    strategy_feat_cols = [
+        'str_above_ma5_3d', 'str_price_dev_ma5',              # 五日线突破
+        'str_vol_ratio_5', 'str_vol_ratio_20',               # 放量信号
+        'str_vol_above_3d', 'str_breakout_vol_3d',            # 放量突破
+        'str_surge_cnt_7d', 'str_max_vol_ratio_7d',           # 巨量检测
+        'str_surge_above_ma5_7d', 'str_vol_trend_5d',         # 巨量+趋势
+        'str_kdj_j', 'str_kdj_j_20_60', 'str_kdj_j_dev',      # KDJ日线
+        'str_kdj_j_delta_3d', 'str_kdj_j_up_3d',              # KDJ日线变化
+        'str_kdj_j_week', 'str_kdj_j_week_trend',              # KDJ周线
+        'str_kdj_j_week_up', 'str_kdj_j_week_day_diff',        # KDJ周线
+        'str_total_score',                                     # 综合评分
+    ]
+    return df, strategy_feat_cols
+
+
 def create_ranking_dataset_vectorized(data, features, sequence_length, ranking_data_path=None, min_window_end_date=None):
     """
     向量化加速版本：预计算每只股票的所有滑动窗口，再按日期聚合。

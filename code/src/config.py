@@ -1,22 +1,28 @@
 # 配置参数
 sequence_length = 60
-feature_num = '158+39'
+feature_num = '158+39'  # 可选: '39', '158+39', 'strategy', 'strategy+base'
 config = {
-    'sequence_length': sequence_length,   # 使用过去60个交易日的数据（排序任务可以用稍短的序列）
+    'sequence_length': sequence_length,   # 使用过去60个交易日的数据
+    'model_type': 'transformer',         # 'transformer' 或 'linear'
     'd_model': 256,          # Transformer输入维度
     'nhead': 4,             # 注意力头数量
     'num_layers': 3,        # Transformer层数
     'dim_feedforward': 512, # 前馈网络维度
-    'batch_size': 4,        # 排序任务batch_size可以小一些，因为每个batch包含更多股票
+    'batch_size': 4,        # 排序任务batch_size可以小一些
     'num_epochs': 50,       # 排序任务可能需要更多epochs
-    'learning_rate': 1e-5,  # 稍微降低学习率
-    'dropout': 0.1,
+    'learning_rate': 1e-5,  # 学习率
+    'dropout': 0.3,         # 增加dropout防止过拟合
     'feature_num': feature_num,
     'max_grad_norm': 5.0,
 
-    'pairwise_weight': 1, # 配对损失权重
-    'base_weight': 1.0, # 非top-k样本权重
-    'top5_weight': 2.0, # top-5样本权重（应大于base_weight）
+    'pairwise_weight': 1,   # 配对损失权重
+    'base_weight': 1.0,     # 非top-k样本权重
+    'top5_weight': 2.0,     # top-5样本额外权重
+
+    # ----- 策略优化参数 -----
+    'use_strategy_features': False,    # 设为True启用策略特征
+    'strategy_sample_weight': 2.0,     # 符合策略条件的样本额外权重
+    'strategy_score_threshold': 4,     # str_total_score >= 此值视为符合策略
 
     'output_dir': f'./model/{sequence_length}_{feature_num}',
     'data_path': './data',
