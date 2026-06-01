@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from config import config
 from model import StockTransformer
-from utils import engineer_features_39, engineer_features_158plus39, engineer_strategy_features
+from utils import engineer_features_39, engineer_features_158plus39, engineer_strategy_features, engineer_dragon_features
 
 
 feature_cloums_map = {
@@ -49,6 +49,7 @@ feature_engineer_func_map = {
 	'158+39': engineer_features_158plus39,
 	'strategy': engineer_features_158plus39,
 	'strategy+base': engineer_features_158plus39,
+	'dragon': engineer_features_158plus39,
 }
 
 # 策略特征列
@@ -88,13 +89,17 @@ def preprocess_predict_data(df, stockid2idx):
 
 	processed = pd.concat(processed_list).reset_index(drop=True)
 
-	# 追加策略特征
+	# 追加策略/龙头特征
 	if config.get('use_strategy_features', False):
 		processed, strategy_cols = engineer_strategy_features(processed)
 		if config['feature_num'] == 'strategy':
 			feature_columns = strategy_cols
 		elif config['feature_num'] == 'strategy+base':
 			feature_columns = _base_cols + strategy_cols
+
+	if config.get('feature_num') == 'dragon':
+		processed, dragon_cols = engineer_dragon_features(processed)
+		feature_columns = dragon_cols
 
 	processed['instrument'] = processed['股票代码'].map(stockid2idx)
 	processed = processed.dropna(subset=['instrument']).copy()

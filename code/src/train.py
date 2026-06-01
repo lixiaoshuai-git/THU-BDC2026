@@ -9,7 +9,7 @@ from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from config import config
 from model import StockTransformer
-from utils import engineer_features_39, engineer_features_158plus39, engineer_strategy_features
+from utils import engineer_features_39, engineer_features_158plus39, engineer_strategy_features, engineer_dragon_features
 from utils import create_ranking_dataset_vectorized
 import joblib
 import os
@@ -34,8 +34,9 @@ feature_cloums_map = {
 feature_engineer_func_map = {
     '39': engineer_features_39,
     '158+39': engineer_features_158plus39,
-    'strategy': engineer_features_158plus39,      # 策略模式：先算基础特征再追加
-    'strategy+base': engineer_features_158plus39,  # 同上
+    'strategy': engineer_features_158plus39,
+    'strategy+base': engineer_features_158plus39,
+    'dragon': engineer_features_158plus39,       # 龙头战法：基础特征 + 龙头特征
 }
 
 # 策略特征列（24个）
@@ -102,15 +103,19 @@ def _preprocess_common(df, stockid2idx, desc, drop_small_open=True):
 
     processed = pd.concat(processed_list).reset_index(drop=True)
 
-    # ---- 追加策略特征 ----
+    # ---- 追加策略/龙头特征 ----
     if config.get('use_strategy_features', False):
         print(f"正在计算策略特征...")
         processed, strategy_cols = engineer_strategy_features(processed)
-        # 如果选择了纯策略特征模式，切换特征列表
         if config['feature_num'] == 'strategy':
             feature_columns = strategy_cols
         elif config['feature_num'] == 'strategy+base':
             feature_columns = _base_cols + strategy_cols
+
+    if config.get('feature_num') == 'dragon':
+        print(f"正在计算龙头战法特征...")
+        processed, dragon_cols = engineer_dragon_features(processed)
+        feature_columns = dragon_cols
 
     # 映射股票索引，并剔除映射失败样本
     processed['instrument'] = processed['股票代码'].map(stockid2idx)

@@ -529,6 +529,142 @@ def create_dataset(data, features, sequence_length, ranking_data_path=None):
 # 策略特征工程：主力板块 + 放量突破 + KDJ筛选
 # ============================================================
 
+# ============================================================
+# 龙头战法特征工程
+# ============================================================
+
+def engineer_dragon_features(df):
+    """
+    五日短线龙头战法特征工程。
+
+    核心理念（量化机构常用）：
+      1. 板块领涨：当日涨幅在板块内排名前3
+      2. 高换手：换手率 > 板块均值 × 2（10%-30%区间）
+      3. 放量：成交量 > 20日均量 × 2
+      4. 率先启动：近5日累计涨幅 > 板块均值 × 2
+      5. 资金关注：成交额排名在板块前5
+
+    生成 28 个龙头识别特征。
+    """
+    import talib
+    import numpy as np
+
+    df = df.copy()
+    df = df.sort_values(['股票代码', '日期']).reset_index(drop=True)
+
+    close   = df['收盘'].astype(float)
+    volume  = df['成交量'].astype(float)
+    amount  = df['成交额'].astype(float)
+    turnover = df['换手率'].astype(float) if '换手率' in df.columns else None
+    ret_1d  = df['涨跌幅'].astype(float) if '涨跌幅' in df.columns else close.pct_change()
+
+    has_sector = '行业' in df.columns
+
+    # ---- 1. 动量强度特征 (5个) ----
+    df['dr_roc_5d']  = close / (close.shift(5) + 1e-12) - 1          # 5日收益率
+    df['dr_roc_3d']  = close / (close.shift(3) + 1e-12) - 1          # 3日收益率
+    df['dr_ret_1d']  = ret_1d                                          # 当日涨跌幅
+    df['dr_high_5d'] = df.groupby('股票代码')['收盘'].transform(       # 5日最高价
+        lambda x: x.rolling(5, min_periods=5).max()
+    )
+    df['dr_position'] = (close - df['dr_high_5d']) / (df['dr_high_5d'] + 1e-12)  # 相对5日高点
+
+    # ---- 2. 成交量特征 (6个) ----
+    vol_ma5  = talib.SMA(volume, timeperiod=5)
+    vol_ma20 = talib.SMA(volume, timeperiod=20)
+    df['dr_vol_ratio_5']  = volume / (vol_ma5 + 1e-12)               # 量比(5日)
+    df['dr_vol_ratio_20'] = volume / (vol_ma20 + 1e-12)              # 量比(20日)
+    df['dr_vol_expand']   = (volume > vol_ma20 * 2).astype(float)    # 放量信号
+    df['dr_vol_expand_3d'] = df.groupby('股票代码')['dr_vol_expand'].transform(
+        lambda x: x.rolling(3, min_periods=3).sum()                   # 连续3天放量
+    )
+    df['dr_amount_rank'] = df.groupby('日期')['成交额'].rank(ascending=False, pct=True)  # 成交额排名
+    df['dr_vol_trend']   = df.groupby('股票代码')['dr_vol_ratio_5'].transform(
+        lambda x: x.diff(3)                                            # 量变化趋势
+    )
+
+    # ---- 3. 换手率特征 (3个) ----
+    if turnover is not None:
+        df['dr_turnover'] = turnover
+        df['dr_turnover_ma5'] = talib.SMA(turnover, timeperiod=5)
+        df['dr_turnover_ratio'] = turnover / (df['dr_turnover_ma5'] + 1e-12)
+    else:
+        df['dr_turnover'] = volume / (volume.shift(20).rolling(20).mean() + 1e-12)
+
+    # ---- 4. 板块内领涨排名 (5个) ----
+    if has_sector:
+        # 有行业数据：在板块内排名
+        sector_rank_col = '行业'
+    else:
+        # 无行业数据：在全市场排名（代理）
+        sector_rank_col = '_dummy'
+        df['_dummy'] = 'ALL'
+
+    # 当日涨幅排名 (在板块内)
+    df['dr_ret_rank'] = df.groupby(['日期', sector_rank_col])['dr_ret_1d'].rank(
+        ascending=False, pct=True
+    )
+    # 5日累计涨幅排名
+    df['dr_roc5_rank'] = df.groupby(['日期', sector_rank_col])['dr_roc_5d'].rank(
+        ascending=False, pct=True
+    )
+    # 换手率排名
+    df['dr_turnover_rank'] = df.groupby(['日期', sector_rank_col])['dr_turnover'].rank(
+        ascending=False, pct=True
+    )
+    # 成交额排名
+    df['dr_amount_rank_sector'] = df.groupby(['日期', sector_rank_col])['成交额'].rank(
+        ascending=False, pct=True
+    )
+    # 是否领涨 (涨幅排前10%)
+    df['dr_is_leader'] = (df['dr_ret_rank'] < 0.1).astype(float)
+
+    if not has_sector:
+        df.drop(columns=['_dummy'], inplace=True)
+
+    # ---- 5. 龙头综合评分 (1个) ----
+    # 龙头得分 = 涨幅排名 + 放量 + 换手 + 动量
+    df['dr_dragon_score'] = (
+        (1 - df['dr_ret_rank']) * 3 +          # 涨幅排名越高越好
+        df['dr_vol_expand'] * 2 +              # 放量加分
+        (1 - df['dr_amount_rank_sector']) * 2 + # 资金关注度
+        (df['dr_roc_5d'] - df['dr_roc_5d'].mean()) * 1  # 超额收益
+    )
+
+    # ---- 6. 领涨持续性 (2个) ----
+    df['dr_leader_3d'] = df.groupby('股票代码')['dr_is_leader'].transform(
+        lambda x: x.rolling(3, min_periods=3).sum()
+    )
+    df['dr_leader_5d'] = df.groupby('股票代码')['dr_is_leader'].transform(
+        lambda x: x.rolling(5, min_periods=5).sum()
+    )
+
+    # ---- 7. 动量加速 (2个) ----
+    df['dr_roc_accel'] = df.groupby('股票代码')['dr_roc_5d'].transform(
+        lambda x: x.diff(5)                            # 5日动量变化
+    )
+    df['dr_vol_price'] = df['dr_roc_5d'] * df['dr_vol_ratio_5']  # 量价配合度
+
+    # ---- 清理 ----
+    df.drop(columns=['dr_high_5d'], inplace=True, errors='ignore')
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.fillna(0, inplace=True)
+
+    dragon_feat_cols = [
+        'dr_roc_5d', 'dr_roc_3d', 'dr_ret_1d', 'dr_position',       # 动量
+        'dr_vol_ratio_5', 'dr_vol_ratio_20', 'dr_vol_expand',        # 量能
+        'dr_vol_expand_3d', 'dr_amount_rank', 'dr_vol_trend',        # 量能
+        'dr_turnover', 'dr_turnover_ratio',                          # 换手
+        'dr_ret_rank', 'dr_roc5_rank', 'dr_turnover_rank',           # 板块排名
+        'dr_amount_rank_sector', 'dr_is_leader',                     # 领涨
+        'dr_dragon_score',                                            # 龙头得分
+        'dr_leader_3d', 'dr_leader_5d',                              # 持续性
+        'dr_roc_accel', 'dr_vol_price',                              # 加速
+    ]
+    return df, dragon_feat_cols
+
+
+
 def engineer_strategy_features(df):
     """
     基于短线突破策略的特征工程，生成24个策略专属特征。
