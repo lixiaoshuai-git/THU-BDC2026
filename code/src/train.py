@@ -133,99 +133,58 @@ def preprocess_val_data(df, stockid2idx=None):
 
 
 # ============================================================
-# LambdaRank 损失函数：专门为排序任务设计
-# 参考论文：On Evaluating Loss Functions for Stock Ranking (2025)
-# 核心思想：对排序位置靠前的样本错误给予更大梯度
+# LambdaRank 损失函数
 # ============================================================
 class LambdaRankLoss(nn.Module):
     """
-    LambdaRank：直接优化排序指标（NDCG），对Top位置梯度更大。
-    在股票排序中，比普通交叉熵提升30-50%。
+    标准 LambdaRank：RankNet 配对损失 × |ΔNDCG| 权重
+    只考虑 y_i > y_j 的对，对排序靠前的位置施加更大权重。
     """
-    def __init__(self, sigma=1.0, k=None):
+    def __init__(self, sigma=1.0):
         super().__init__()
         self.sigma = sigma
-        self.k = k
-
-    def _compute_dcg(self, y_true, y_pred):
-        """计算DCG (Discounted Cumulative Gain)"""
-        _, indices = torch.sort(y_pred, descending=True)
-        gains = 2 ** y_true[indices] - 1
-        discounts = torch.log2(torch.arange(1, len(indices) + 1, device=y_true.device).float() + 1)
-        dcg = (gains / discounts).sum()
-        return dcg, indices
-
-    def _compute_ndcg(self, y_true, y_pred, k=None):
-        """计算 NDCG@k"""
-        if k is None or k >= len(y_true):
-            k = len(y_true)
-        pred_dcg, _ = self._compute_dcg(y_true[:k], y_pred[:k] if k >= len(y_pred) else y_pred)
-        true_dcg, _ = self._compute_dcg(y_true[:k], y_true[:k])
-        return pred_dcg / (true_dcg + 1e-12)
-
-    def _compute_lambda_weights(self, y_true, y_pred):
-        """
-        计算 LambdaRank 的 delta-NDCG 权重：
-        交换 i 和 j 的排序导致 NDCG 变化 = |ΔNDCG|
-        """
-        n = len(y_true)
-        device = y_true.device
-
-        # 按预测分数降序排列
-        _, pred_order = torch.sort(y_pred, descending=True)
-        # 按真实标签降序排列
-        _, true_order = torch.sort(y_true, descending=True)
-
-        # 计算每个位置的 DCG 贡献
-        gains = 2 ** y_true - 1
-        positions = torch.arange(1, n + 1, device=device).float()
-        discounts = torch.log2(positions + 1)
-
-        # 简化版 LambdaRank：使用 RankNet 的 sigmoid 交叉熵 + NDCG delta
-        # Lambda_ij = -sigma / (1 + exp(sigma * (s_i - s_j))) * |ΔNDCG_ij|
-        pred_diff = y_pred.unsqueeze(1) - y_pred.unsqueeze(0)  # [n, n]
-        true_diff = y_true.unsqueeze(1) - y_true.unsqueeze(0)  # [n, n]
-
-        # RankNet lambda
-        sigma = self.sigma
-        rho = 1.0 / (1.0 + torch.exp(sigma * pred_diff))  # sigmoid(-sigma * diff)
-
-        # |ΔNDCG| 权重：来自 position i 和 j 交换的 NDCG 变化
-        # 简化：|1/log2(i+2) - 1/log2(j+2)| * |gains_i - gains_j|
-        pos_i = torch.arange(1, n + 1, device=device).float().unsqueeze(1)  # [n, 1]
-        pos_j = torch.arange(1, n + 1, device=device).float().unsqueeze(0)  # [1, n]
-        delta_dcg = torch.abs(1.0 / torch.log2(pos_i + 1) - 1.0 / torch.log2(pos_j + 1))
-        delta_dcg = delta_dcg * torch.abs(gains.unsqueeze(1) - gains.unsqueeze(0))
-
-        # Lambda = sigma * rho * delta_dcg
-        lambdas = sigma * rho * delta_dcg
-        lambdas = lambdas * (true_diff != 0).float()  # 只考虑标签不同的对
-
-        return lambdas
 
     def forward(self, y_pred, y_true):
         """
-        y_pred: [batch_size, num_items] 预测分数
-        y_true: [batch_size, num_items] 真实标签（收益率）
+        y_pred: [batch, n] 预测分数
+        y_true: [batch, n] 标签（rank 模式 0~1，return 模式是收益率）
         """
-        batch_loss = 0.0
-        batch_size = y_pred.size(0)
+        batch_size, n = y_pred.size()
+        device = y_pred.device
+        sigma = self.sigma
+        total_loss = 0.0
 
-        for i in range(batch_size):
-            n = y_true[i].size(0)
+        # 位置折扣：DCG 公式中的 1/log2(i+2)
+        pos = torch.arange(n, device=device, dtype=torch.float32)
+        discounts = 1.0 / torch.log2(pos + 2)
+
+        for b in range(batch_size):
+            s = y_pred[b]                                  # [n]
+            y = y_true[b]                                  # [n]
             if n < 2:
                 continue
 
-            # LambdaRank 梯度
-            lambdas = self._compute_lambda_weights(y_true[i], y_pred[i])
-            pred_diff = y_pred[i].unsqueeze(1) - y_pred[i].unsqueeze(0)
-            sigma = self.sigma
+            gain = y                                       # rank标签直接用y；收益率模式下可用 torch.exp(y)
+            s_diff = s.unsqueeze(1) - s.unsqueeze(0)       # [n,n]: s_i - s_j
+            y_diff = y.unsqueeze(1) - y.unsqueeze(0)       # [n,n]: y_i - y_j
 
-            # 每个样本的损失 = 对所有对的贡献求和
-            loss = torch.log(1.0 + torch.exp(-sigma * pred_diff)) * lambdas
-            batch_loss = batch_loss + loss.mean()
+            # 只考虑 y_i > y_j 的对
+            mask = (y_diff > 1e-8).float()
+            n_pairs = mask.sum()
+            if n_pairs == 0:
+                continue
 
-        return batch_loss / max(batch_size, 1)
+            # |ΔNDCG_ij| 权重
+            delta = torch.abs(
+                (discounts.unsqueeze(1) - discounts.unsqueeze(0)) *
+                (gain.unsqueeze(1) - gain.unsqueeze(0))
+            )
+
+            # RankNet 配对损失 × delta 权重
+            pair_loss = torch.log1p(torch.exp(-sigma * s_diff))
+            total_loss += (pair_loss * mask * delta).sum() / n_pairs
+
+        return total_loss / max(batch_size, 1)
 
 
 # 保留旧损失作为备选
