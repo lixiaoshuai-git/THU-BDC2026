@@ -582,7 +582,7 @@ def engineer_strategy_features(df):
         lambda x: x.rolling(3, min_periods=3).sum()
     )
 
-    # ---- 3. 七日放巨量特征 (5个) ----
+    # ---- 3. 七日放巨量特征 (6个) ----
     # 巨量 = 当日量 > 20日均量 * 2
     df['_vol_surge'] = (volume > vol_ma20 * 2).astype(float)
     # 7天内放巨量的天数
@@ -602,6 +602,8 @@ def engineer_strategy_features(df):
     df['str_vol_trend_5d'] = df.groupby('股票代码')['str_vol_ratio_5'].transform(
         lambda x: (x.diff(5))
     )
+    # 7天内至少1天放巨量 (>=1)
+    df['str_has_surge_7d'] = (df['str_surge_cnt_7d'] >= 1).astype(float)
 
     # ---- 4. KDJ日线特征 (5个) ----
     k, d = talib.STOCH(high, low, close, fastk_period=9, slowk_period=3, slowd_period=3)
@@ -648,11 +650,15 @@ def engineer_strategy_features(df):
 
     # ---- 6. 策略综合评分 (1个) ----
     # 四大条件加权打分 (总分0~8)
+    # 修正：巨量条件改为 >=1 天 + KDJ日线上升
+    df['str_surge_kdj_up'] = (
+        df['str_has_surge_7d'] * df['str_kdj_j_up_3d']  # 有巨量 且 KDJ日线J在上升
+    )
     df['str_total_score'] = (
-        (df['str_breakout_vol_3d'] >= 2).astype(float) * 3 +      # 放量突破(最高权重)
-        ((df['str_surge_cnt_7d'] >= 1) & (df['str_surge_cnt_7d'] <= 2)).astype(float) * 2 +  # 有巨量
-        df['str_kdj_j_20_60'] * 2 +                               # J值在20-60
-        df['str_kdj_j_week_up'] * 1                                # 周线J上升
+        (df['str_breakout_vol_3d'] >= 2).astype(float) * 3 +   # 放量突破(最高权重)
+        df['str_surge_kdj_up'] * 2 +                            # 有巨量 + KDJ日线上升
+        df['str_kdj_j_20_60'] * 2 +                             # J值在20-60
+        df['str_kdj_j_week_up'] * 1                              # 周线J上升
     )
 
     # ---- 清理 ----
@@ -672,6 +678,7 @@ def engineer_strategy_features(df):
         'str_vol_above_3d', 'str_breakout_vol_3d',            # 放量突破
         'str_surge_cnt_7d', 'str_max_vol_ratio_7d',           # 巨量检测
         'str_surge_above_ma5_7d', 'str_vol_trend_5d',         # 巨量+趋势
+        'str_has_surge_7d', 'str_surge_kdj_up',               # 巨量标记+KDJ日线绑定
         'str_kdj_j', 'str_kdj_j_20_60', 'str_kdj_j_dev',      # KDJ日线
         'str_kdj_j_delta_3d', 'str_kdj_j_up_3d',              # KDJ日线变化
         'str_kdj_j_week', 'str_kdj_j_week_trend',              # KDJ周线

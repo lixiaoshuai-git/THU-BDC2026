@@ -45,6 +45,7 @@ _strategy_feat_cols = [
     'str_vol_above_3d', 'str_breakout_vol_3d',
     'str_surge_cnt_7d', 'str_max_vol_ratio_7d',
     'str_surge_above_ma5_7d', 'str_vol_trend_5d',
+    'str_has_surge_7d', 'str_surge_kdj_up',
     'str_kdj_j', 'str_kdj_j_20_60', 'str_kdj_j_dev',
     'str_kdj_j_delta_3d', 'str_kdj_j_up_3d',
     'str_kdj_j_week', 'str_kdj_j_week_trend',
