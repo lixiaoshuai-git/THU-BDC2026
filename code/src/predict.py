@@ -148,21 +148,22 @@ def main():
 	stock_ids = sorted(raw_df['股票代码'].unique())
 	stockid2idx = {sid: idx for idx, sid in enumerate(stock_ids)}
 
-	processed, features = preprocess_predict_data(raw_df, stockid2idx)
+	processed, all_features = preprocess_predict_data(raw_df, stockid2idx)
 
-	# 使用训练时 IC 筛选后的特征
-	selected = train_config.get('selected_features')
-	if selected:
-		missing = set(selected) - set(features)
-		if missing:
-			# 策略特征可能列名不同，跳过缺失的
-			selected = [f for f in selected if f in features]
-		features = selected
-		print(f'使用训练时保存的特征: {len(features)} 个')
+	# 对齐特征：用训练时 scaler 记录的列名，或 IC 筛选后的特征
+	scaler = joblib.load(scaler_path)
+	if hasattr(scaler, 'feature_names_in_'):
+		features = list(scaler.feature_names_in_)
+		print(f'使用 scaler 记录的特征: {len(features)} 个')
+	else:
+		selected = train_config.get('selected_features')
+		if selected:
+			features = [f for f in selected if f in all_features]
+			print(f'使用 IC 筛选特征: {len(features)} 个')
+		else:
+			features = all_features
 
 	processed[features] = processed[features].replace([np.inf, -np.inf], np.nan).fillna(0.0)
-
-	scaler = joblib.load(scaler_path)
 	processed[features] = scaler.transform(processed[features])
 
 	sequence_length = config['sequence_length']
