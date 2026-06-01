@@ -1,6 +1,6 @@
 # 配置参数
 sequence_length = 60
-feature_num = '158+39'  # 可选: '39', '158+39', 'strategy', 'strategy+base'
+feature_num = 'strategy+base'  # 可选: '39', '158+39', 'strategy', 'strategy+base'
 config = {
     'sequence_length': sequence_length,   # 使用过去60个交易日的数据
     'model_type': 'transformer',         # 'transformer' 或 'linear'
@@ -20,7 +20,7 @@ config = {
     'top5_weight': 2.0,     # top-5样本额外权重
 
     # ----- 策略优化参数 -----
-    'use_strategy_features': False,    # 设为True启用策略特征
+    'use_strategy_features': True,    # 设为True启用策略特征
     'strategy_sample_weight': 2.0,     # 符合策略条件的样本额外权重
     'strategy_score_threshold': 4,     # str_total_score >= 此值视为符合策略
 
