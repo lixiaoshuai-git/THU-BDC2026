@@ -19,10 +19,13 @@ config = {
     'base_weight': 1.0,     # 非top-k样本权重
     'top5_weight': 2.0,     # top-5样本额外权重
 
-    # ----- 策略优化参数 -----
+    # 策略优化参数
     'use_strategy_features': True,    # 设为True启用策略特征
     'strategy_sample_weight': 2.0,     # 符合策略条件的样本额外权重
     'strategy_score_threshold': 4,     # str_total_score >= 此值视为符合策略
+    'loss_function': 'lambdarank',    # 'lambdarank' | 'weighted_ranking'
+    'label_type': 'rank',  # 'future5d_return' | 'rank'
+    'feature_selection_keep': 100,    # IC过滤后保留特征数，0=不过滤
 
     'output_dir': f'./model/{sequence_length}_{feature_num}',
     'data_path': './data',
