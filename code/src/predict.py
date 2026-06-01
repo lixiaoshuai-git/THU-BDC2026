@@ -69,6 +69,7 @@ _strategy_feat_cols = [
 _base_cols = feature_cloums_map['158+39']
 feature_cloums_map['strategy'] = _strategy_feat_cols
 feature_cloums_map['strategy+base'] = _base_cols + _strategy_feat_cols
+feature_cloums_map['dragon'] = []
 
 
 def preprocess_predict_data(df, stockid2idx):

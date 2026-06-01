@@ -58,6 +58,7 @@ _strategy_feat_cols = [
 _base_cols = feature_cloums_map['158+39']
 feature_cloums_map['strategy'] = _strategy_feat_cols
 feature_cloums_map['strategy+base'] = _base_cols + _strategy_feat_cols
+feature_cloums_map['dragon'] = []  # 占位，实际特征由 engineer_dragon_features 动态生成
 
 
 def _build_label_and_clean(processed, drop_small_open=True):
