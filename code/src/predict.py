@@ -80,11 +80,20 @@ def allocate_weights_aggressive(expected_returns, uncertainties, top_k=5, max_we
     exp_scores = np.exp(risk_adjusted * temperature)
     raw_weights = exp_scores / (exp_scores.sum() + 1e-8)
     
-    # 限制最大权重（激进：单只股票最低不少于 5%，最高不超过 max_weight）
-    raw_weights = np.minimum(raw_weights, max_weight)
-    
-    # 归一化
-    raw_weights = raw_weights / (raw_weights.sum() + 1e-8)
+    # 限制最大权重：迭代裁剪 + 溢出重分配
+    # 算法：反复将超额部分从超限股票移出，按原权重比例分给未超限股票
+    for _ in range(20):
+        over_idx = np.where(raw_weights > max_weight)[0]
+        if len(over_idx) == 0:
+            break
+        # 超限部分的总超额
+        excess_total = (raw_weights[over_idx] - max_weight).sum()
+        raw_weights[over_idx] = max_weight
+        # 按现有权重比例分给未超限的股票
+        under_idx = np.where(raw_weights < max_weight)[0]
+        if len(under_idx) > 0:
+            share = raw_weights[under_idx] / raw_weights[under_idx].sum()
+            raw_weights[under_idx] += excess_total * share
     
     return top_k_indices, raw_weights
 

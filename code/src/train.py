@@ -399,7 +399,9 @@ def train_ranking_model(model, dataloader, criterion, optimizer, device, epoch, 
             valid_pred = masked_returns[i][valid_indices]
             valid_true = masked_targets[i][valid_indices]
 
-            if len(valid_pred) > 1:
+            # direct_return 模式下需要至少有 k 只有效股票才能计算 top-k
+            min_required = criterion.top_k if direct_return else 2
+            if len(valid_pred) >= min_required:
                 if direct_return:
                     # 直接优化组合收益率
                     loss = criterion(
@@ -448,7 +450,8 @@ def train_ranking_model(model, dataloader, criterion, optimizer, device, epoch, 
                     writer.add_scalar(f'train/{k}', v, global_step=epoch * len(dataloader) + local_step)
 
     # 处理最后不完整的梯度累积批次
-    if (batch_idx + 1) % accumulation_steps != 0:
+    batch_iterated = len(dataloader) > 0
+    if batch_iterated and local_step > 0 and (len(dataloader) % accumulation_steps != 0):
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config['max_grad_norm'])
         optimizer.step()
         optimizer.zero_grad()
@@ -491,7 +494,9 @@ def evaluate_ranking_model(model, dataloader, criterion, device, writer, epoch):
                 valid_pred = masked_returns[i][valid_indices]
                 valid_true = masked_targets[i][valid_indices]
 
-                if len(valid_pred) > 1:
+                # direct_return 模式下需要至少有 k 只有效股票
+                min_required = criterion.top_k if direct_return else 2
+                if len(valid_pred) >= min_required:
                     if direct_return:
                         loss = criterion(
                             valid_pred.unsqueeze(0),
