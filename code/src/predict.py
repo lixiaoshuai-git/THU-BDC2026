@@ -13,154 +13,220 @@ from utils import engineer_features_39, engineer_features_158plus39
 
 
 feature_cloums_map = {
-	'39': [
-		'instrument', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌额', '换手率', '涨跌幅',
-		'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
-		'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
-		'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
-		'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread'
-	],
-	'158+39': [
-		'instrument', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌额', '换手率', '涨跌幅',
-		'KMID', 'KLEN', 'KMID2', 'KUP', 'KUP2', 'KLOW', 'KLOW2', 'KSFT', 'KSFT2', 'OPEN0', 'HIGH0', 'LOW0',
-		'VWAP0', 'ROC5', 'ROC10', 'ROC20', 'ROC30', 'ROC60', 'MA5', 'MA10', 'MA20', 'MA30', 'MA60', 'STD5',
-		'STD10', 'STD20', 'STD30', 'STD60', 'BETA5', 'BETA10', 'BETA20', 'BETA30', 'BETA60', 'RSQR5', 'RSQR10',
-		'RSQR20', 'RSQR30', 'RSQR60', 'RESI5', 'RESI10', 'RESI20', 'RESI30', 'RESI60', 'MAX5', 'MAX10', 'MAX20',
-		'MAX30', 'MAX60', 'MIN5', 'MIN10', 'MIN20', 'MIN30', 'MIN60', 'QTLU5', 'QTLU10', 'QTLU20', 'QTLU30',
-		'QTLU60', 'QTLD5', 'QTLD10', 'QTLD20', 'QTLD30', 'QTLD60', 'RANK5', 'RANK10', 'RANK20', 'RANK30',
-		'RANK60', 'RSV5', 'RSV10', 'RSV20', 'RSV30', 'RSV60', 'IMAX5', 'IMAX10', 'IMAX20', 'IMAX30', 'IMAX60',
-		'IMIN5', 'IMIN10', 'IMIN20', 'IMIN30', 'IMIN60', 'IMXD5', 'IMXD10', 'IMXD20', 'IMXD30', 'IMXD60',
-		'CORR5', 'CORR10', 'CORR20', 'CORR30', 'CORR60', 'CORD5', 'CORD10', 'CORD20', 'CORD30', 'CORD60',
-		'CNTP5', 'CNTP10', 'CNTP20', 'CNTP30', 'CNTP60', 'CNTN5', 'CNTN10', 'CNTN20', 'CNTN30', 'CNTN60',
-		'CNTD5', 'CNTD10', 'CNTD20', 'CNTD30', 'CNTD60', 'SUMP5', 'SUMP10', 'SUMP20', 'SUMP30', 'SUMP60',
-		'SUMN5', 'SUMN10', 'SUMN20', 'SUMN30', 'SUMN60', 'SUMD5', 'SUMD10', 'SUMD20', 'SUMD30', 'SUMD60',
-		'VMA5', 'VMA10', 'VMA20', 'VMA30', 'VMA60', 'VSTD5', 'VSTD10', 'VSTD20', 'VSTD30', 'VSTD60', 'WVMA5',
-		'WVMA10', 'WVMA20', 'WVMA30', 'WVMA60', 'VSUMP5', 'VSUMP10', 'VSUMP20', 'VSUMP30', 'VSUMP60', 'VSUMN5',
-		'VSUMN10', 'VSUMN20', 'VSUMN30', 'VSUMN60', 'VSUMD5', 'VSUMD10', 'VSUMD20', 'VSUMD30', 'VSUMD60',
-		'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
-		'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
-		'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
-		'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread'
-	]
+    '39': [
+        'instrument', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌额', '换手率', '涨跌幅',
+        'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
+        'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
+        'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
+        'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread'
+    ],
+    '158+39': [
+        'instrument', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌额', '换手率', '涨跌幅',
+        'KMID', 'KLEN', 'KMID2', 'KUP', 'KUP2', 'KLOW', 'KLOW2', 'KSFT', 'KSFT2', 'OPEN0', 'HIGH0', 'LOW0',
+        'VWAP0', 'ROC5', 'ROC10', 'ROC20', 'ROC30', 'ROC60', 'MA5', 'MA10', 'MA20', 'MA30', 'MA60', 'STD5',
+        'STD10', 'STD20', 'STD30', 'STD60', 'BETA5', 'BETA10', 'BETA20', 'BETA30', 'BETA60', 'RSQR5', 'RSQR10',
+        'RSQR20', 'RSQR30', 'RSQR60', 'RESI5', 'RESI10', 'RESI20', 'RESI30', 'RESI60', 'MAX5', 'MAX10', 'MAX20',
+        'MAX30', 'MAX60', 'MIN5', 'MIN10', 'MIN20', 'MIN30', 'MIN60', 'QTLU5', 'QTLU10', 'QTLU20', 'QTLU30',
+        'QTLU60', 'QTLD5', 'QTLD10', 'QTLD20', 'QTLD30', 'QTLD60', 'RANK5', 'RANK10', 'RANK20', 'RANK30',
+        'RANK60', 'RSV5', 'RSV10', 'RSV20', 'RSV30', 'RSV60', 'IMAX5', 'IMAX10', 'IMAX20', 'IMAX30', 'IMAX60',
+        'IMIN5', 'IMIN10', 'IMIN20', 'IMIN30', 'IMIN60', 'IMXD5', 'IMXD10', 'IMXD20', 'IMXD30', 'IMXD60',
+        'CORR5', 'CORR10', 'CORR20', 'CORR30', 'CORR60', 'CORD5', 'CORD10', 'CORD20', 'CORD30', 'CORD60',
+        'CNTP5', 'CNTP10', 'CNTP20', 'CNTP30', 'CNTP60', 'CNTN5', 'CNTN10', 'CNTN20', 'CNTN30', 'CNTN60',
+        'CNTD5', 'CNTD10', 'CNTD20', 'CNTD30', 'CNTD60', 'SUMP5', 'SUMP10', 'SUMP20', 'SUMP30', 'SUMP60',
+        'SUMN5', 'SUMN10', 'SUMN20', 'SUMN30', 'SUMN60', 'SUMD5', 'SUMD10', 'SUMD20', 'SUMD30', 'SUMD60',
+        'VMA5', 'VMA10', 'VMA20', 'VMA30', 'VMA60', 'VSTD5', 'VSTD10', 'VSTD20', 'VSTD30', 'VSTD60', 'WVMA5',
+        'WVMA10', 'WVMA20', 'WVMA30', 'WVMA60', 'VSUMP5', 'VSUMP10', 'VSUMP20', 'VSUMP30', 'VSUMP60', 'VSUMN5',
+        'VSUMN10', 'VSUMN20', 'VSUMN30', 'VSUMN60', 'VSUMD5', 'VSUMD10', 'VSUMD20', 'VSUMD30', 'VSUMD60',
+        'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
+        'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
+        'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
+        'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread',
+        # 持有期收益相关特征 (新增)
+        'vol_5d', 'vol_20d', 'vol_ratio_5_20',
+        'momentum_5d', 'momentum_20d', 'momentum_ratio_5_20',
+        'volume_change_5d', 'volume_ma_5d', 'volume_ma_20d', 'volume_ma_ratio_5_20',
+        'ma_alignment',
+        'up_count_5d', 'extreme_up_5d', 'extreme_down_5d',
+        'return_skew_20d',
+        'max_drawdown_5d',
+    ]
 }
 
 feature_engineer_func_map = {
-	'39': engineer_features_39,
-	'158+39': engineer_features_158plus39,
+    '39': engineer_features_39,
+    '158+39': engineer_features_158plus39,
 }
 
 
+def allocate_weights_aggressive(expected_returns, uncertainties, top_k=5, max_weight=0.5, temperature=5.0):
+    """
+    激进风格动态权重分配
+    
+    基于预期收益率和不确定性，非线性分配权重。
+    不确定性低的股票获得更高权重，不确定性高的股票降低权重。
+    """
+    # 选择Top-K股票（按预期收益率）
+    top_k_indices = np.argsort(expected_returns)[::-1][:top_k]
+    
+    # 提取Top-K的预期收益率和不确定性
+    top_returns = expected_returns[top_k_indices]
+    top_uncertainties = uncertainties[top_k_indices]
+    
+    # 计算风险调整后的分数（类似夏普比率）
+    risk_adjusted = top_returns / (top_uncertainties + 1e-8)
+    
+    # 使用Softmax分配权重（温度参数控制集中程度）
+    # 温度越高，分配越集中
+    exp_scores = np.exp(risk_adjusted * temperature)
+    raw_weights = exp_scores / (exp_scores.sum() + 1e-8)
+    
+    # 限制最大权重（激进：单只股票最低不少于 5%，最高不超过 max_weight）
+    raw_weights = np.minimum(raw_weights, max_weight)
+    
+    # 归一化
+    raw_weights = raw_weights / (raw_weights.sum() + 1e-8)
+    
+    return top_k_indices, raw_weights
+
+
+def allocate_weights_equal(expected_returns, top_k=5):
+    """等权重分配（回退方案）"""
+    top_k_indices = np.argsort(expected_returns)[::-1][:top_k]
+    weights = np.ones(top_k) / top_k
+    return top_k_indices, weights
+
+
 def preprocess_predict_data(df, stockid2idx):
-	assert config['feature_num'] in feature_engineer_func_map, f"Unsupported feature_num: {config['feature_num']}"
-	feature_engineer = feature_engineer_func_map[config['feature_num']]
-	feature_columns = feature_cloums_map[config['feature_num']]
+    assert config['feature_num'] in feature_engineer_func_map, f"Unsupported feature_num: {config['feature_num']}"
+    feature_engineer = feature_engineer_func_map[config['feature_num']]
+    feature_columns = feature_cloums_map[config['feature_num']]
 
-	df = df.copy()
-	df = df.sort_values(['股票代码', '日期']).reset_index(drop=True)
-	groups = [group for _, group in df.groupby('股票代码', sort=False)]
-	if len(groups) == 0:
-		raise ValueError('输入数据为空，无法预测')
+    df = df.copy()
+    df = df.sort_values(['股票代码', '日期']).reset_index(drop=True)
+    groups = [group for _, group in df.groupby('股票代码', sort=False)]
+    if len(groups) == 0:
+        raise ValueError('输入数据为空，无法预测')
 
-	num_processes = min(10, mp.cpu_count())
-	print('cpus!!!!!!!!!!!!!!!!!!',mp.cpu_count())
-	with mp.Pool(processes=num_processes) as pool:
-		processed_list = list(tqdm(pool.imap(feature_engineer, groups), total=len(groups), desc='预测集特征工程'))
+    num_processes = min(10, mp.cpu_count())
+    print(f'使用进程数: {num_processes}')
+    with mp.Pool(processes=num_processes) as pool:
+        processed_list = list(tqdm(pool.imap(feature_engineer, groups), total=len(groups), desc='预测集特征工程'))
 
-	processed = pd.concat(processed_list).reset_index(drop=True)
-	processed['instrument'] = processed['股票代码'].map(stockid2idx)
-	processed = processed.dropna(subset=['instrument']).copy()
-	processed['instrument'] = processed['instrument'].astype(np.int64)
-	processed['日期'] = pd.to_datetime(processed['日期'])
+    processed = pd.concat(processed_list).reset_index(drop=True)
+    processed['instrument'] = processed['股票代码'].map(stockid2idx)
+    processed = processed.dropna(subset=['instrument']).copy()
+    processed['instrument'] = processed['instrument'].astype(np.int64)
+    processed['日期'] = pd.to_datetime(processed['日期'])
 
-	return processed, feature_columns
+    return processed, feature_columns
 
 
 def build_inference_sequences(data, features, sequence_length, stock_ids, latest_date):
-	sequences, sequence_stock_ids = [], []
-	for stock_id in stock_ids:
-		stock_history = data[
-			(data['股票代码'] == stock_id) &
-			(data['日期'] <= latest_date)
-		].sort_values('日期').tail(sequence_length)
+    sequences, sequence_stock_ids = [], []
+    for stock_id in stock_ids:
+        stock_history = data[
+            (data['股票代码'] == stock_id) &
+            (data['日期'] <= latest_date)
+        ].sort_values('日期').tail(sequence_length)
 
-		if len(stock_history) == sequence_length:
-			sequences.append(stock_history[features].values.astype(np.float32))
-			sequence_stock_ids.append(stock_id)
+        if len(stock_history) == sequence_length:
+            sequences.append(stock_history[features].values.astype(np.float32))
+            sequence_stock_ids.append(stock_id)
 
-	if len(sequences) == 0:
-		raise ValueError('没有可用于预测的股票序列，请检查数据与 sequence_length')
+    if len(sequences) == 0:
+        raise ValueError('没有可用于预测的股票序列，请检查数据与 sequence_length')
 
-	return np.asarray(sequences, dtype=np.float32), sequence_stock_ids
+    return np.asarray(sequences, dtype=np.float32), sequence_stock_ids
 
 
 def main():
-	data_file = os.path.join(config['data_path'], 'train.csv')
-	model_path = os.path.join(config['output_dir'], 'best_model.pth')
-	scaler_path = os.path.join(config['output_dir'], 'scaler.pkl')
-	output_path = os.path.join('./output/', 'result.csv')
+    data_file = os.path.join(config['data_path'], 'train.csv')
+    model_path = os.path.join(config['output_dir'], 'best_model.pth')
+    scaler_path = os.path.join(config['output_dir'], 'scaler.pkl')
+    output_path = os.path.join('./output/', 'result.csv')
 
-	if not os.path.exists(model_path):
-		raise FileNotFoundError(f'未找到模型文件: {model_path}')
-	if not os.path.exists(scaler_path):
-		raise FileNotFoundError(f'未找到Scaler文件: {scaler_path}')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-	raw_df = pd.read_csv(data_file, dtype={'股票代码': str})
-	raw_df['股票代码'] = raw_df['股票代码'].astype(str).str.zfill(6)
-	raw_df['日期'] = pd.to_datetime(raw_df['日期'])
-	latest_date = raw_df['日期'].max()
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f'未找到模型文件: {model_path}')
+    if not os.path.exists(scaler_path):
+        raise FileNotFoundError(f'未找到Scaler文件: {scaler_path}')
 
-	stock_ids = sorted(raw_df['股票代码'].unique())
-	stockid2idx = {sid: idx for idx, sid in enumerate(stock_ids)}
+    raw_df = pd.read_csv(data_file, dtype={'股票代码': str})
+    raw_df['股票代码'] = raw_df['股票代码'].astype(str).str.zfill(6)
+    raw_df['日期'] = pd.to_datetime(raw_df['日期'])
+    latest_date = raw_df['日期'].max()
 
-	processed, features = preprocess_predict_data(raw_df, stockid2idx)
-	processed[features] = processed[features].replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    stock_ids = sorted(raw_df['股票代码'].unique())
+    stockid2idx = {sid: idx for idx, sid in enumerate(stock_ids)}
 
-	scaler = joblib.load(scaler_path)
-	processed[features] = scaler.transform(processed[features])
+    processed, features = preprocess_predict_data(raw_df, stockid2idx)
+    processed[features] = processed[features].replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-	sequence_length = config['sequence_length']
-	sequences_np, sequence_stock_ids = build_inference_sequences(
-		processed,
-		features,
-		sequence_length,
-		stock_ids,
-		latest_date,
-	)
+    scaler = joblib.load(scaler_path)
+    processed[features] = scaler.transform(processed[features])
 
-	if torch.cuda.is_available():
-		device = torch.device('cuda')
-	elif torch.backends.mps.is_available():
-		device = torch.device('mps')
-	else:
-		device = torch.device('cpu')
+    sequence_length = config['sequence_length']
+    sequences_np, sequence_stock_ids = build_inference_sequences(
+        processed, features, sequence_length, stock_ids, latest_date,
+    )
 
-	model = StockTransformer(input_dim=len(features), config=config, num_stocks=len(stock_ids))
-	model.load_state_dict(torch.load(model_path, map_location=device))
-	model.to(device)
-	model.eval()
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
 
-	with torch.no_grad():
-		x = torch.from_numpy(sequences_np).unsqueeze(0).to(device)  # [1, N, L, F]
-		scores = model(x).squeeze(0).detach().cpu().numpy()         # [N]
+    print(f"使用设备: {device}")
 
-	order = np.argsort(scores)[::-1]
-	ranked_stock_ids = [sequence_stock_ids[i] for i in order]
+    model = StockTransformer(input_dim=len(features), config=config, num_stocks=len(stock_ids))
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
 
-	# 仅输出前5，权重固定 0.2
-	if len(ranked_stock_ids) < 5:
-		raise ValueError(f'可预测股票不足5只，当前仅有 {len(ranked_stock_ids)} 只')
-	top5 = ranked_stock_ids[:5]
-	output_df = pd.DataFrame({
-		'stock_id': top5,
-		'weight': [0.2] * len(top5),
-	})
-	output_df.to_csv(output_path, index=False)
+    with torch.no_grad():
+        x = torch.from_numpy(sequences_np).unsqueeze(0).to(device)  # [1, N, L, F]
+        expected_returns, uncertainty = model(x)
+        expected_returns = expected_returns.squeeze(0).cpu().numpy()
+        uncertainty = uncertainty.squeeze(0).cpu().numpy()
 
-	print(f'预测日期: {latest_date.date()}')
-	print(f'参与排序股票数: {len(ranked_stock_ids)}')
-	print(f'结果已写入: {output_path}')
+    # 权重分配策略
+    weight_mode = config.get('weight_mode', 'aggressive')
+    max_single_weight = config.get('max_single_weight', 0.5)
+    weight_temperature = config.get('weight_temperature', 5.0)
+
+    if weight_mode == 'aggressive':
+        top_indices, weights = allocate_weights_aggressive(
+            expected_returns, uncertainty,
+            top_k=5, max_weight=max_single_weight, temperature=weight_temperature
+        )
+        print(f"权重分配模式: 激进 (动态权重, max={max_single_weight}, temperature={weight_temperature})")
+    else:
+        top_indices, weights = allocate_weights_equal(expected_returns, top_k=5)
+        print("权重分配模式: 等权重")
+
+    # 构建输出
+    top5_stocks = [sequence_stock_ids[i] for i in top_indices]
+
+    output_df = pd.DataFrame({
+        'stock_id': top5_stocks,
+        'weight': np.round(weights, 6)
+    })
+    output_df.to_csv(output_path, index=False)
+
+    print(f"\n{'='*50}")
+    print(f"预测日期: {latest_date.date()}")
+    print(f"参与排序股票数: {len(sequence_stock_ids)}")
+    print(f"\nTop 5 选股结果:")
+    for i, (stock, w) in enumerate(zip(top5_stocks, weights)):
+        ret = expected_returns[top_indices[i]]
+        unc = uncertainty[top_indices[i]]
+        print(f"  {i+1}. {stock}  预期收益率: {ret:.4%}  不确定性: {unc:.4f}  权重: {w:.2%}")
+    print(f"{'='*50}")
+    print(f"结果已写入: {output_path}")
 
 
 if __name__ == '__main__':
-	mp.set_start_method('spawn', force=True)
-	main()
+    mp.set_start_method('spawn', force=True)
+    main()

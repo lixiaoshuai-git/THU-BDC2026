@@ -8,6 +8,61 @@ from tqdm import tqdm
 def _rolling_linear_regression(x, y):
     x = np.vstack([np.ones(len(x)), x]).T
     beta, res, _, _ = np.linalg.lstsq(x, y, rcond=None)
+
+
+def add_holding_period_features(df):
+    """
+    添加持有期收益相关特征（针对"持有5天不操作"任务优化）
+    特征包含: 波动率、动量、成交量变化、均线排列等
+    """
+    df = df.copy()
+    close = df['收盘'].astype(float)
+    volume = df['成交量'].astype(float)
+
+    # 1. 波动率特征
+    df['vol_5d'] = close.rolling(5).std().bfill()
+    df['vol_20d'] = close.rolling(20).std().bfill()
+    df['vol_ratio_5_20'] = df['vol_5d'] / (df['vol_20d'] + 1e-8)
+
+    # 2. 动量特征
+    df['momentum_5d'] = close.pct_change(5)
+    df['momentum_20d'] = close.pct_change(20)
+    df['momentum_ratio_5_20'] = df['momentum_5d'] / (df['momentum_20d'] + 1e-8)
+
+    # 3. 成交量特征
+    df['volume_change_5d'] = volume.pct_change(5)
+    df['volume_ma_5d'] = volume.rolling(5).mean().bfill()
+    df['volume_ma_20d'] = volume.rolling(20).mean().bfill()
+    df['volume_ma_ratio_5_20'] = df['volume_ma_5d'] / (df['volume_ma_20d'] + 1e-8)
+
+    # 4. 均线排列（多头/空头）
+    df['ma5'] = close.rolling(5).mean().bfill()
+    df['ma20'] = close.rolling(20).mean().bfill()
+    df['ma60'] = close.rolling(60).mean().bfill()
+    df['ma_alignment'] = ((df['ma5'] > df['ma20']) & (df['ma20'] > df['ma60'])).astype(float)
+
+    # 5. 极端收益计数（帮助判断趋势强度）
+    daily_ret = close.pct_change(1)
+    df['up_count_5d'] = (daily_ret > 0).rolling(5).sum().bfill()
+    df['extreme_up_5d'] = (daily_ret > 0.03).rolling(5).sum().bfill()
+    df['extreme_down_5d'] = (daily_ret < -0.03).rolling(5).sum().bfill()
+
+    # 6. 收益偏度（正偏度暗示上涨趋势更强）
+    df['return_skew_20d'] = daily_ret.rolling(20).skew().bfill()
+
+    # 7. 最大回撤（持有期风险指标）
+    rolling_max = close.rolling(5).max()
+    df['max_drawdown_5d'] = (close - rolling_max) / (rolling_max + 1e-8)
+
+    # 清理
+    cols_to_drop = ['ma5', 'ma20', 'ma60']
+    df.drop(columns=[c for c in cols_to_drop if c in df.columns], inplace=True)
+
+    # 处理inf和NaN
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.fillna(0, inplace=True)
+
+    return df
     return beta[1], res[0] if len(res) > 0 else 0.0, np.sum((y - (x @ beta))**2)
 def engineer_features_158plus39(df):
     """
@@ -21,6 +76,9 @@ def engineer_features_158plus39(df):
     
     # 2. 计算39个技术指标特征
     df_39 = engineer_features_39(df_copy)
+
+    # 2.5 添加持有期收益相关特征（针对"持有5天"任务优化）
+    df_holding = add_holding_period_features(df_copy)
 
     # 3. 合并两个DataFrame
     # 首先，从df_39中选取我们需要的列，避免与df_158中的原始列（如'开盘'）重复
@@ -36,7 +94,7 @@ def engineer_features_158plus39(df):
     feature_cols_39_exist = [col for col in feature_cols_39 if col in df_39.columns]
     
     # 合并，df_158 已经包含了原始列和158个特征
-    df_final = pd.concat([df_158, df_39[feature_cols_39_exist]], axis=1)
+    df_final = pd.concat([df_158, df_39[feature_cols_39_exist], df_holding], axis=1)
 
     # 4. 处理可能因为合并产生的重复列（如果两个函数生成了同名特征）
     df_final = df_final.loc[:,~df_final.columns.duplicated()]
