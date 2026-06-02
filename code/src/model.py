@@ -119,13 +119,13 @@ class StockTransformer(nn.Module):
             nn.Dropout(config['dropout'])
         )
 
-        # 预期收益率输出头 (直接预测收益率)
+        # 排序分数输出头 (无激活层 → 可以输出极端分数 → 真正激进)
         self.return_head = nn.Sequential(
             nn.Linear(config['d_model'] // 2, config['d_model'] // 4),
             nn.GELU(),
             nn.Dropout(config['dropout'] * 0.5),
-            nn.Linear(config['d_model'] // 4, 1),
-            nn.Tanh()  # 限制在[-1, 1]，即-100%到+100%
+            nn.Linear(config['d_model'] // 4, 1)
+            # 注意: 不加 Tanh! 让模型自由输出任意分数
         )
 
         # 不确定性估计头
@@ -176,16 +176,17 @@ class StockTransformer(nn.Module):
         # 排序特异性变换
         ranking_features = self.ranking_layers(interactive_features)
 
-        # 生成预期收益率
-        expected_returns = self.return_head(ranking_features)
+        # 生成排序分数 (无激活 → 可以极端表达 → 这才是真激进)
+        ranking_scores = self.return_head(ranking_features)
+        # ranking_scores: [batch*num_stocks, 1], 值域 (-∞, +∞)
 
         # 估计不确定性
         uncertainty = self.uncertainty_head(ranking_features)
 
         # 重塑
-        expected_returns = expected_returns.view(batch_size, num_stocks)
+        ranking_scores = ranking_scores.view(batch_size, num_stocks)
         uncertainty = uncertainty.view(batch_size, num_stocks)
 
         if return_attention:
-            return expected_returns, uncertainty, feat_attn_weights, cross_attn_weights
-        return expected_returns, uncertainty
+            return ranking_scores, uncertainty, feat_attn_weights, cross_attn_weights
+        return ranking_scores, uncertainty

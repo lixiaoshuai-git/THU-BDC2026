@@ -124,45 +124,71 @@ def preprocess_val_data(df, stockid2idx=None):
 
 
 # ============================================================
-# 新增: 直接优化组合收益率的损失函数
+# 排序优化损失: ListNet + 激进加成
+# 核心思想: 不预测具体收益率，直接优化"谁该排前面"
 # ============================================================
-class PortfolioReturnLoss(nn.Module):
-    """直接优化组合收益率 + 不确定性加权"""
-    def __init__(self, top_k=5, return_weight=1.0, risk_penalty=0.1):
-        super(PortfolioReturnLoss, self).__init__()
+class AggressiveListNetLoss(nn.Module):
+    """
+    ListNet 排序损失 + 激进偏置
+    
+    原理:
+    1. 真实收益率 → softmax → 目标分布 (涨得越多, 概率越高)
+    2. 模型分数 → softmax → 预测分布
+    3. 交叉熵 = 最小化两个分布的差异
+    
+    激进加成:
+    - 温度 < 1.0: 放大头部差异, 让模型更关注Top股票
+    - top_weight: 对Top-K股票的损失额外加权
+    - 显著加速模型区分"头部股票"和"尾部股票"
+    """
+    def __init__(self, temperature=0.3, top_k=5, top_weight=3.0, eps=1e-12):
+        super(AggressiveListNetLoss, self).__init__()
+        self.temperature = temperature  # 越小越激进 (放大头部差异)
         self.top_k = top_k
-        self.return_weight = return_weight
-        self.risk_penalty = risk_penalty
+        self.top_weight = top_weight    # Top-K损失放大倍数
+        self.eps = eps
 
-    def forward(self, predicted_returns, true_returns, uncertainties=None):
-        # predicted_returns: [batch, num_stocks]
-        # true_returns: [batch, num_stocks]
-        batch_size = predicted_returns.size(0)
-        total_loss = 0.0
-
-        for i in range(batch_size):
-            _, top_k_indices = torch.topk(predicted_returns[i], self.top_k)
-            portfolio_true_return = true_returns[i][top_k_indices].mean()
-            portfolio_pred_return = predicted_returns[i][top_k_indices].mean()
-            return_loss = F.mse_loss(portfolio_pred_return, portfolio_true_return)
-
-            # 可选: 风险惩罚
-            if self.risk_penalty > 0:
-                portfolio_risk = torch.std(true_returns[i][top_k_indices])
-                return_loss = return_loss + self.risk_penalty * portfolio_risk
-
-            # 可选: 不确定性惩罚 (避免模型过度自信)
-            if uncertainties is not None:
-                top_uncertainty = uncertainties[i][top_k_indices].mean()
-                return_loss = return_loss + 0.01 * top_uncertainty
-
-            total_loss = total_loss + return_loss
-
-        return total_loss / batch_size
+    def forward(self, pred_scores, true_returns):
+        # pred_scores: [batch, num_stocks]  模型输出的排序分数 (无界)
+        # true_returns: [batch, num_stocks]  真实收益率
+        
+        batch_size, num_stocks = pred_scores.size()
+        
+        # 1. 目标分布: 真实收益率越高 → 概率越大
+        #    温度缩放: 温度越小 → 头部越集中 → 模型更激进
+        true_prob = F.softmax(true_returns / self.temperature, dim=1)
+        
+        # 2. 预测分布
+        pred_prob = F.softmax(pred_scores / self.temperature, dim=1)
+        
+        # 3. 基础交叉熵
+        base_loss = -torch.sum(true_prob * torch.log(pred_prob + self.eps), dim=1)
+        
+        # 4. 激进加成: 对Top-K股票的错误排序加重惩罚
+        if self.top_weight > 1.0:
+            # 找到真实Top-K股票
+            _, top_indices = torch.topk(true_returns, min(self.top_k, num_stocks), dim=1)
+            
+            # 计算Top-K股票的平均预测概率 (越高越好)
+            k = min(self.top_k, num_stocks)
+            top_mask = torch.zeros_like(true_prob)
+            for i in range(batch_size):
+                top_mask[i, top_indices[i]] = 1.0
+            
+            # Top-K惩罚: 模型对Top-K股票分配的概率太低 → 加罚
+            top_prob = (pred_prob * top_mask).sum(dim=1) / k
+            top_penalty = -torch.log(top_prob + self.eps)  # 越大越好 → log越大 → 损失越小
+            
+            # 加权组合
+            loss = base_loss + (self.top_weight - 1.0) * top_penalty
+        else:
+            loss = base_loss
+        
+        return loss.mean()
 
 
 # ============================================================
-# 保留原排序损失 (兼容模式)
+# 兼容模式: 旧版排序损失
 # ============================================================
 class WeightedRankingLoss(nn.Module):
     def __init__(self, temperature=1.0, k=5, weight_factor=2.0, pairwise_weight=1, base_weight=1.0):
@@ -375,13 +401,12 @@ def train_ranking_model(model, dataloader, criterion, optimizer, device, epoch, 
         targets = batch['targets'].to(device)
         masks = batch['masks'].to(device)
 
-        # 模型预测 (新: 同时返回预期收益率和不确定性)
-        expected_returns, uncertainty = model(sequences)
-        # expected_returns: [batch, max_stocks]
-        # uncertainty: [batch, max_stocks]
+        # 模型预测 (新: 输出排序分数 + 不确定性)
+        ranking_scores, uncertainty = model(sequences)
+        # ranking_scores: [batch, max_stocks], 越大 = 越值得买
 
         # 应用mask
-        masked_returns = expected_returns * masks + (1 - masks) * (-1e9)
+        masked_scores = ranking_scores * masks + (1 - masks) * (-1e9)
         masked_targets = targets * masks
 
         # 计算损失
@@ -396,18 +421,17 @@ def train_ranking_model(model, dataloader, criterion, optimizer, device, epoch, 
             if valid_indices.dim() == 0:
                 valid_indices = valid_indices.unsqueeze(0)
 
-            valid_pred = masked_returns[i][valid_indices]
+            valid_pred = masked_scores[i][valid_indices]
             valid_true = masked_targets[i][valid_indices]
 
-            # direct_return 模式下需要至少有 k 只有效股票才能计算 top-k
-            min_required = criterion.top_k if direct_return else 2
+            # 至少需要2只股票才能计算Softmax
+            min_required = 2
             if len(valid_pred) >= min_required:
                 if direct_return:
-                    # 直接优化组合收益率
+                    # ListNet排序损失: 只传 scores 和 true_returns
                     loss = criterion(
                         valid_pred.unsqueeze(0),
-                        valid_true.unsqueeze(0),
-                        uncertainty[i][valid_indices].unsqueeze(0)
+                        valid_true.unsqueeze(0)
                     )
                 else:
                     # 排序损失 (兼容模式)
@@ -435,9 +459,9 @@ def train_ranking_model(model, dataloader, criterion, optimizer, device, epoch, 
 
             with torch.no_grad():
                 if direct_return:
-                    metrics = calculate_portfolio_metrics(masked_returns, masked_targets, masks, k=5)
+                    metrics = calculate_portfolio_metrics(masked_scores, masked_targets, masks, k=5)
                 else:
-                    metrics = calculate_ranking_metrics(masked_returns, masked_targets, masks, k=5)
+                    metrics = calculate_ranking_metrics(masked_scores, masked_targets, masks, k=5)
                 for k, v in metrics.items():
                     if k not in total_metrics:
                         total_metrics[k] = 0
@@ -477,7 +501,7 @@ def evaluate_ranking_model(model, dataloader, criterion, device, writer, epoch):
             masks = batch['masks'].to(device)
 
             expected_returns, uncertainty = model(sequences)
-            masked_returns = expected_returns * masks + (1 - masks) * (-1e9)
+            masked_scores = expected_returns * masks + (1 - masks) * (-1e9)
             masked_targets = targets * masks
 
             batch_loss = None
@@ -491,17 +515,16 @@ def evaluate_ranking_model(model, dataloader, criterion, device, writer, epoch):
                 if valid_indices.dim() == 0:
                     valid_indices = valid_indices.unsqueeze(0)
 
-                valid_pred = masked_returns[i][valid_indices]
+                valid_pred = masked_scores[i][valid_indices]
                 valid_true = masked_targets[i][valid_indices]
 
-                # direct_return 模式下需要至少有 k 只有效股票
-                min_required = criterion.top_k if direct_return else 2
+                # 至少需要2只股票
+                min_required = 2
                 if len(valid_pred) >= min_required:
                     if direct_return:
                         loss = criterion(
                             valid_pred.unsqueeze(0),
-                            valid_true.unsqueeze(0),
-                            uncertainty[i][valid_indices].unsqueeze(0)
+                            valid_true.unsqueeze(0)
                         )
                     else:
                         _, sorted_indices = torch.sort(valid_true, descending=True)
@@ -517,9 +540,9 @@ def evaluate_ranking_model(model, dataloader, criterion, device, writer, epoch):
                 total_loss += batch_loss.item()
 
             if direct_return:
-                metrics = calculate_portfolio_metrics(masked_returns, masked_targets, masks, k=5)
+                metrics = calculate_portfolio_metrics(masked_scores, masked_targets, masks, k=5)
             else:
-                metrics = calculate_ranking_metrics(masked_returns, masked_targets, masks, k=5)
+                metrics = calculate_ranking_metrics(masked_scores, masked_targets, masks, k=5)
             for k, v in metrics.items():
                 if k not in total_metrics:
                     total_metrics[k] = 0
@@ -727,14 +750,14 @@ def main():
     print(f"模型参数量: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # 7. 损失函数
-    direct_return = config.get('direct_return_optimization', False)
+    direct_return = config.get('direct_return_optimization', True)
     if direct_return:
-        criterion = PortfolioReturnLoss(
+        criterion = AggressiveListNetLoss(
+            temperature=config.get('loss_temperature', 0.3),
             top_k=5,
-            return_weight=config.get('return_weight', 1.0),
-            risk_penalty=config.get('risk_penalty', 0.1)
+            top_weight=config.get('top5_weight', 3.0)
         )
-        print("使用 PortfolioReturnLoss (直接优化组合收益率)")
+        print(f"使用 AggressiveListNetLoss (温度={config.get('loss_temperature', 0.3)}, top_weight={config.get('top5_weight', 3.0)})")
     else:
         criterion = WeightedRankingLoss(
             temperature=config.get('loss_temperature', 0.5),

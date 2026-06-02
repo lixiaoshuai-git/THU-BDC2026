@@ -58,22 +58,18 @@ feature_engineer_func_map = {
 }
 
 
-def allocate_weights_aggressive(expected_returns, uncertainties, top_k=5, max_weight=0.5, temperature=5.0):
+def allocate_weights_aggressive(ranking_scores, uncertainties, top_k=5, max_weight=0.5, temperature=5.0):
     """
     激进风格动态权重分配
     
-    基于预期收益率和不确定性，非线性分配权重。
-    不确定性低的股票获得更高权重，不确定性高的股票降低权重。
+    基于排序分数(越高越好)和不确定性(越低越好)，非线性分配权重。
     """
-    # 选择Top-K股票（按预期收益率）
-    top_k_indices = np.argsort(expected_returns)[::-1][:top_k]
-    
-    # 提取Top-K的预期收益率和不确定性
-    top_returns = expected_returns[top_k_indices]
+    top_k_indices = np.argsort(ranking_scores)[::-1][:top_k]
+    top_scores = ranking_scores[top_k_indices]
     top_uncertainties = uncertainties[top_k_indices]
     
-    # 计算风险调整后的分数（类似夏普比率）
-    risk_adjusted = top_returns / (top_uncertainties + 1e-8)
+    # 计算风险调整后的分数
+    risk_adjusted = top_scores / (top_uncertainties + 1e-8)
     
     # 使用Softmax分配权重（温度参数控制集中程度）
     # 温度越高，分配越集中
@@ -195,27 +191,26 @@ def main():
     model.eval()
 
     with torch.no_grad():
-        x = torch.from_numpy(sequences_np).unsqueeze(0).to(device)  # [1, N, L, F]
-        expected_returns, uncertainty = model(x)
-        expected_returns = expected_returns.squeeze(0).cpu().numpy()
+        x = torch.from_numpy(sequences_np).unsqueeze(0).to(device)
+        ranking_scores, uncertainty = model(x)
+        ranking_scores = ranking_scores.squeeze(0).cpu().numpy()
         uncertainty = uncertainty.squeeze(0).cpu().numpy()
 
-    # 权重分配策略
+    # 权重分配
     weight_mode = config.get('weight_mode', 'aggressive')
     max_single_weight = config.get('max_single_weight', 0.5)
     weight_temperature = config.get('weight_temperature', 5.0)
 
     if weight_mode == 'aggressive':
         top_indices, weights = allocate_weights_aggressive(
-            expected_returns, uncertainty,
+            ranking_scores, uncertainty,
             top_k=5, max_weight=max_single_weight, temperature=weight_temperature
         )
-        print(f"权重分配模式: 激进 (动态权重, max={max_single_weight}, temperature={weight_temperature})")
+        print(f"权重分配: 激进模式 (max={max_single_weight}, temp={weight_temperature})")
     else:
-        top_indices, weights = allocate_weights_equal(expected_returns, top_k=5)
-        print("权重分配模式: 等权重")
+        top_indices, weights = allocate_weights_equal(ranking_scores, top_k=5)
+        print("权重分配: 等权重")
 
-    # 构建输出
     top5_stocks = [sequence_stock_ids[i] for i in top_indices]
 
     output_df = pd.DataFrame({
@@ -229,9 +224,9 @@ def main():
     print(f"参与排序股票数: {len(sequence_stock_ids)}")
     print(f"\nTop 5 选股结果:")
     for i, (stock, w) in enumerate(zip(top5_stocks, weights)):
-        ret = expected_returns[top_indices[i]]
+        score = ranking_scores[top_indices[i]]
         unc = uncertainty[top_indices[i]]
-        print(f"  {i+1}. {stock}  预期收益率: {ret:.4%}  不确定性: {unc:.4f}  权重: {w:.2%}")
+        print(f"  {i+1}. {stock}  排序分数: {score:.4f}  不确定性: {unc:.4f}  权重: {w:.2%}")
     print(f"{'='*50}")
     print(f"结果已写入: {output_path}")
 
