@@ -9,7 +9,7 @@
 
 import baostock as bs
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import os
 import time
 
@@ -76,7 +76,7 @@ def get_stock_history(bs_code, start_date, end_date):
     df['涨跌额'] = (df['close'] - df['preclose']).round(2)
     
     # 转换日期格式 YYYY/M/D
-    df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y/%-m/%-d')
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y/%m/%d')
     
     # 提取纯数字股票代码（统一为6位格式，不足前面补0）
     df['code'] = df['code'].str.replace('sh.', '').str.replace('sz.', '')
@@ -217,11 +217,12 @@ def merge_stock_data(existing_df, new_df, stock_code):
 
 
 def main():
-    save_dir = "./data"
+    today = date.today()
+    save_dir = os.path.join("data", today.strftime("%Y-%m-%d"))
     os.makedirs(save_dir, exist_ok=True)
     
     start_date = "2024-01-01"
-    end_date = "2026-03-15"
+    end_date = format_api_date(today)
     
     output_path = os.path.join(save_dir, "stock_data.csv")
     
