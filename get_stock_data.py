@@ -218,7 +218,8 @@ def merge_stock_data(existing_df, new_df, stock_code):
 
 def main():
     today = date.today()
-    save_dir = os.path.join("data", today.strftime("%Y-%m-%d"))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    save_dir = os.path.join(script_dir, "data", today.strftime("%Y-%m-%d"))
     os.makedirs(save_dir, exist_ok=True)
     
     start_date = "2024-01-01"
@@ -270,6 +271,8 @@ def main():
         new_stock_count = 0
         incremental_count = 0
         total_new_records = 0
+        batch_save_interval = 100
+        processed_since_last_save = 0
         
         for idx, row in hs300_df.iterrows():
             bs_code = row.get('code', '')
@@ -344,6 +347,12 @@ def main():
             if success_count > 0 and success_count % 10 == 0:
                 print(f"\n  --- 已处理 {success_count} 只，暂停2秒 ---")
                 time.sleep(2)
+
+            processed_since_last_save += 1
+            if processed_since_last_save >= batch_save_interval and existing_df is not None:
+                existing_df.to_csv(output_path, index=False, encoding='utf-8-sig')
+                print(f"\n  --- 已处理 {idx+1}/{total} 只股票，分批保存到文件: {output_path} ---")
+                processed_since_last_save = 0
         
         # 显示结果
         print("\n" + "=" * 60)
