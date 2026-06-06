@@ -50,5 +50,5 @@ config = {
 
     # ---- 路径 ----
     'output_dir': f'./model/{sequence_length}_{feature_num}',
-    'data_path': './data/data-03',
+    'data_path': './data/2026-06-05',
 }

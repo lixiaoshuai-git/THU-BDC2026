@@ -215,9 +215,19 @@ def main():
 
     top5_stocks = [sequence_stock_ids[i] for i in top_indices]
 
+    # 修正浮点精度问题：round后若sum>1.0，从最大权重里扣除多余部分
+    # 这样写入CSV的6位小数严格 sum <= 1.0，避免 round→除法→写回再引入误差
+    rounded_weights = np.round(weights, 6)
+    excess = rounded_weights.sum() - 1.0
+    if excess > 0:
+        imax = np.argmax(rounded_weights)
+        rounded_weights[imax] = np.round(rounded_weights[imax] - excess, 6)
+        # 确保不出现负权重
+        rounded_weights = np.clip(rounded_weights, 0, None)
+
     output_df = pd.DataFrame({
         'stock_id': top5_stocks,
-        'weight': np.round(weights, 6)
+        'weight': rounded_weights
     })
     output_df.to_csv(output_path, index=False)
 
@@ -225,7 +235,7 @@ def main():
     print(f"预测日期: {latest_date.date()}")
     print(f"参与排序股票数: {len(sequence_stock_ids)}")
     print(f"\nTop 5 选股结果:")
-    for i, (stock, w) in enumerate(zip(top5_stocks, weights)):
+    for i, (stock, w) in enumerate(zip(top5_stocks, rounded_weights)):
         score = ranking_scores[top_indices[i]]
         unc = uncertainty[top_indices[i]]
         print(f"  {i+1}. {stock}  排序分数: {score:.4f}  不确定性: {unc:.4f}  权重: {w:.2%}")
