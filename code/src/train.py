@@ -32,9 +32,11 @@ def set_seed(seed=42):
 feature_cloums_map = {
     '39': [
         'instrument', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌额', '换手率', '涨跌幅',
-        'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
-        'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
-        'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
+        'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
+        'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j',
+        'kdj_k_d_diff', 'kdj_k_ma5', 'kdj_d_ma5', 'kdj_j_ma5', 'kdj_k_slope', 'kdj_cross',
+        'boll_mid', 'boll_std',
+        'atr_14', 'ema_60', 'return_1',
         'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread'
     ],
     '158+39': [
@@ -54,14 +56,14 @@ feature_cloums_map = {
         'VMA5', 'VMA10', 'VMA20', 'VMA30', 'VMA60', 'VSTD5', 'VSTD10', 'VSTD20', 'VSTD30', 'VSTD60', 'WVMA5',
         'WVMA10', 'WVMA20', 'WVMA30', 'WVMA60', 'VSUMP5', 'VSUMP10', 'VSUMP20', 'VSUMP30', 'VSUMP60', 'VSUMN5',
         'VSUMN10', 'VSUMN20', 'VSUMN30', 'VSUMN60', 'VSUMD5', 'VSUMD10', 'VSUMD20', 'VSUMD30', 'VSUMD60',
-        'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
-        'volume_ma_5', 'volume_ma_20', 'volume_ratio', 'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
-        'atr_14', 'ema_60', 'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',
+        'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 'volume_change', 'obv',
+        'volume_ratio',         'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std',
+        'atr_14', 'ema_60', 'return_1',
         'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread',
-        # 持有期收益相关特征 (新增)
-        'vol_5d', 'vol_20d', 'vol_ratio_5_20',
-        'momentum_5d', 'momentum_20d', 'momentum_ratio_5_20',
-        'volume_change_5d', 'volume_ma_5d', 'volume_ma_20d', 'volume_ma_ratio_5_20',
+        # KDJ 衍生特征 (加强KDJ比重)
+        'kdj_k_d_diff', 'kdj_k_ma5', 'kdj_d_ma5', 'kdj_j_ma5', 'kdj_k_slope', 'kdj_cross',
+        # 持有期收益相关特征
+        'volume_change_5d',
         'ma_alignment',
         'up_count_5d', 'extreme_up_5d', 'extreme_down_5d',
         'return_skew_20d',

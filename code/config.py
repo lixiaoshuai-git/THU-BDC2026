@@ -24,5 +24,5 @@ config = {
     'early_stopping_patience': 15,    # Early Stopping 容忍轮数
 
     'output_dir': f'./model/{sequence_length}_{feature_num}',
-    'data_path': './data',
+    'data_path': './data/2026-06-05',
 }
