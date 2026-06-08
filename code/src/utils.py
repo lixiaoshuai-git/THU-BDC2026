@@ -83,12 +83,10 @@ def engineer_features_158plus39(df):
     # 3. 合并两个DataFrame
     # 首先，从df_39中选取我们需要的列，避免与df_158中的原始列（如'开盘'）重复
     feature_cols_39 = [
-        'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 
-        'volume_change', 'obv', 'volume_ratio', 
-        'kdj_k', 'kdj_d', 'kdj_j', 'kdj_k_d_diff',
-        'kdj_k_ma5', 'kdj_d_ma5', 'kdj_j_ma5', 'kdj_k_slope', 'kdj_cross',
-        'boll_mid', 'boll_std', 'atr_14', 'ema_60', 
-        'return_1',
+        'sma_5', 'sma_20', 'ema_12', 'ema_26', 'rsi', 'macd', 'macd_signal', 
+        'volume_change', 'obv', 'volume_ma_5', 'volume_ma_20', 'volume_ratio', 
+        'kdj_k', 'kdj_d', 'kdj_j', 'boll_mid', 'boll_std', 'atr_14', 'ema_60', 
+        'volatility_10', 'volatility_20', 'return_1', 'return_5', 'return_10',  
         'high_low_spread', 'open_close_spread', 'high_close_spread', 'low_close_spread'
     ]
     
@@ -150,21 +148,6 @@ def engineer_features_39(df):
     # KDJ
     df['kdj_k'], df['kdj_d'] = talib.STOCH(high, low, close, fastk_period=9, slowk_period=3, slowd_period=3)
     df['kdj_j'] = 3 * df['kdj_k'] - 2 * df['kdj_d']
-
-    # KDJ 衍生特征 (加强KDJ比重)
-    # 1. K-D 差值 (金叉/死叉信号, 正值=多头, 负值=空头)
-    df['kdj_k_d_diff'] = df['kdj_k'] - df['kdj_d']
-    # 2. J-D 差值 (更敏感的交叉信号)
-    df['kdj_j_d_diff'] = df['kdj_j'] - df['kdj_d']
-    # 3. K/D/J 5日均线 (平滑趋势)
-    df['kdj_k_ma5'] = talib.SMA(df['kdj_k'], timeperiod=5)
-    df['kdj_d_ma5'] = talib.SMA(df['kdj_d'], timeperiod=5)
-    df['kdj_j_ma5'] = talib.SMA(df['kdj_j'], timeperiod=5)
-    # 4. K与K均线差值 (拐头信号)
-    df['kdj_k_slope'] = df['kdj_k'] - df['kdj_k_ma5']
-    # 5. KDJ 金叉信号 (K上穿D, 1=金叉, -1=死叉, 0=无)
-    df['kdj_cross'] = ( (df['kdj_k'] > df['kdj_d']) & (df['kdj_k'].shift(1) <= df['kdj_d'].shift(1)) ).astype(float) \
-                    - ( (df['kdj_k'] < df['kdj_d']) & (df['kdj_k'].shift(1) >= df['kdj_d'].shift(1)) ).astype(float)
 
     # Bollinger Bands
     df['boll_mid'], df['boll_upper'], df['boll_lower'] = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)

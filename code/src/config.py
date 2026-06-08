@@ -45,10 +45,10 @@ config = {
     'top5_weight': 5.0,       # top-5样本权重 (激进: 提高到5.0)
 
     # ---- 权重分配参数 ----
-    'max_single_weight': 0.3,    # 单只股票最大权重 (激进: 允许50%)
-    'weight_temperature': 3.0,   # 权重分配温度 (越大分配越集中)
+    'max_single_weight': 0.5,    # 单只股票最大权重 (激进: 允许50%)
+    'weight_temperature': 5.0,   # 权重分配温度 (越大分配越集中)
 
     # ---- 路径 ----
     'output_dir': f'./model/{sequence_length}_{feature_num}',
-    'data_path': './data/data-03',
+    'data_path': './data',
 }
